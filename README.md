@@ -1,11 +1,18 @@
 # DPCN Assignment 1 — Opinion Network Formation
 
-**This push: the Idea (core network analysis)**
+**Parts so far: Idea, Extension 1 (this push)**
 
 This project constructs and analyzes a network from `Survey_Results_UC.csv`, a
 survey collecting opinions on Technology, Education, Society/Ethics, and
-Environment (Values) from the class. This repository holds the core network
-analysis; Extensions 1–3 build on it.
+Environment (Values) from the class. This README repeats the core Idea in
+full (for context) and adds Extension 1 on top of it.
+
+**Repo layout is flat** — all contributors' files live at the repo root
+alongside the shared `Survey_Results_UC.csv`, not in per-person subfolders.
+Every script uses only its own filename plus that shared CSV, and output
+filenames are kept unique per contributor (`results.md` for the Idea,
+`results_extension1.md` / `results_extension2.md` / `results_extension3.md`
+for the extensions) so nobody's push overwrites anybody else's output.
 
 ## Dataset
 
@@ -17,9 +24,11 @@ analysis; Extensions 1–3 build on it.
 - 5 respondents left every question blank and were dropped. 6 more abandoned
   partway through in a clean trailing-block pattern (answered questions 1..N
   in order, then stopped — survey fatigue, not random non-response).
-- All network construction here uses the **68 fully-complete respondents**
-  (`data_utils.load_complete()`), to avoid missing-data bias in the
-  correlation matrix.
+- All network construction across this project uses the **68 fully-complete
+  respondents** (`data_utils.load_complete()`), to avoid missing-data bias in
+  the correlation matrix.
+
+---
 
 ## Idea: Hub-statement centrality — AI attitudes are structurally decoupled
 
@@ -41,8 +50,7 @@ analysis; Extensions 1–3 build on it.
 - **Betweenness centrality**: which statements bridge otherwise-separate parts
   of the belief network.
 - **k-core decomposition** on a separate, more strictly thresholded graph
-  (|r| ≥ 0.30) to find the "backbone" — the maximal subgraph where every
-  statement is strongly connected to many others.
+  (|r| ≥ 0.30) to find the "backbone."
 - **Significance test**: a permutation null. Each of the 60 item columns is
   independently shuffled across the 68 respondents (200 times), which
   destroys all real correlation structure while preserving each item's
@@ -53,36 +61,17 @@ analysis; Extensions 1–3 build on it.
 
 ### Results
 
-**Top 8 hub statements (highest eigenvector centrality):**
+**Top 8 hub statements (highest eigenvector centrality):** S09, V07, V08, E07,
+S14, V15, S07, V13 — all Society/Environment/pedagogy-values items.
 
-| Centrality | Code | Statement |
-|---|---|---|
-| 0.220 | S09 | Universities should promote an inclusive environment where different viewpoints can be discussed respectfully |
-| 0.214 | V07 | Protecting biodiversity is essential for long-term human well-being |
-| 0.208 | V08 | Universities should adopt environmentally sustainable campus practices even if implementation costs increase |
-| 0.191 | E07 | Publishing research before graduation should be encouraged, but not mandatory |
-| 0.187 | S14 | Leaders should prioritize ethical decision-making even when it reduces short-term gains |
-| 0.185 | V15 | Current generations have a responsibility to protect natural resources for future generations |
-| 0.176 | S07 | Equal opportunities should be prioritized regardless of a person's background |
-| 0.176 | V13 | Companies should be held accountable for the environmental impacts of their activities |
-
-**5 most peripheral statements (lowest eigenvector centrality):**
-
-| Centrality | Code | Statement |
-|---|---|---|
-| 0.022 | T08 | AI-assisted diagnosis should become routine in healthcare |
-| 0.023 | T01 | Artificial Intelligence will improve society more than it will create problems |
-| 0.027 | E06 | Every undergraduate student should participate in at least one research project |
-| 0.037 | T02 | Generative AI tools should be allowed as learning aids in higher education |
-| 0.039 | T15 | Society will increasingly depend on AI-assisted decision making |
+**5 most peripheral statements (lowest eigenvector centrality):** T08, T01,
+E06, T02, T15 — core AI-attitude items dominate this list.
 
 **k-core backbone** (|r| ≥ 0.30 graph): a "9-core" is the subgraph left after
 repeatedly stripping away any statement connected to fewer than 9 others
-within it — it's a connectivity requirement, not a node count. That
-requirement leaves a **22-statement backbone** standing: 6 Society, 4
-Education, 12 Environment — **zero Technology statements**. The class's most
-tightly interconnected "backbone" of beliefs contains no AI-specific items at
-all.
+within it — a connectivity requirement, not a node count. That requirement
+leaves a **22-statement backbone** standing: 6 Society, 4 Education, 12
+Environment — **zero Technology statements**.
 
 ### Significance test
 
@@ -91,50 +80,92 @@ all.
 | Statistic | mean eigenvector centrality (non-Tech) − mean eigenvector centrality (Tech) |
 | Observed | 0.0668 |
 | Permutation null (B=200) | mean = 0.0005, std = 0.0093 |
-| **p-value** | **0.0050** (the floor achievable with 200 permutations — 0 of 200 random reshuffles matched or exceeded the observed gap) |
-
-The observed gap sits roughly **7 standard deviations** above the null mean.
+| **p-value** | **0.0050** (floor with 200 permutations) |
 
 ### Conclusion
 
-There is a tightly interconnected general civic/pedagogical-values belief
-system in this class (centered on ethics, inclusivity, environmental
-responsibility, and educational innovation) — but **AI-specific attitudes are
-statistically decoupled from it**. Knowing someone is pro-environment,
-pro-ethics, or pro-inclusive-education tells you almost nothing about whether
-they trust AI in healthcare or believe AI helps society more than it harms.
-This is the strongest, most rigorously validated finding across the whole
-project (see `idea.md` at the repo root for the full exploratory log and how
-this was chosen over other candidate directions).
+AI-specific attitudes are statistically decoupled from the class's general
+civic/pedagogical-values belief system. This is the strongest, most
+rigorously validated finding across the whole project.
 
-## Files in this folder
+*(Full code: `data_utils.py`, `idea_hub_centrality.py`; outputs:
+`outputs/network_graph.png`, `outputs/centrality_by_statement.png`,
+`outputs/significance_test.png`, `outputs/results.md`. See `idea.md` at the
+repo root for the full exploratory log behind this choice.)*
 
-- `data_utils.py` — loads and cleans the survey CSV, returns the 68×60 numeric
-  matrix, plus a generic permutation-null helper. (Self-contained; each
-  contributor's folder has its own identical copy so folders can be run
-  independently.)
-- `idea_hub_centrality.py` — builds the network, computes all centrality
-  metrics and the k-core backbone, runs the significance test, saves figures
-  and a results summary.
-- `outputs/network_graph.png` — the full network, laid out force-directed
-  (statements with stronger correlation are pulled closer together). Visual
-  encoding:
-  - **Node size** = eigenvector centrality (bigger = more central/hub-like,
-    same value as the tables above — this is why Technology nodes are
-    visibly small).
-  - **Node color** = T/E/S/V block (see legend).
-  - **Black ring** = backbone membership (the 22-statement 9-core described
-    above).
-  - **Larger, black label text** = the top-8 hub / bottom-5 peripheral
-    statements from the tables above (a separate ranking from the backbone
-    ring — a node can be one, both, or neither).
-  - **Edge darkness/thickness** = strength of the correlation (|r|) between
-    two statements.
-- `outputs/centrality_by_statement.png` — eigenvector centrality per
-  statement, colored by T/E/S/V block.
-- `outputs/significance_test.png` — observed value vs. the permutation null
-  distribution.
-- `outputs/results.md` — full numeric results (regenerated by the script).
+---
 
-**To run:** `python3.12 idea_hub_centrality.py` from inside this folder
-(needs `Survey_Results_UC.csv` in the same folder).
+## Extension 1: Structural balance on the signed statement network
+
+This extension asks a different question of the same underlying data: is the
+class's belief system internally *consistent*? Classical social-balance
+(Heider) theory says a triad of three mutually-connected opinions is
+"balanced" if the product of the three relationship signs is positive (e.g.
+all three positively correlated, or one positive and two negative) — roughly,
+"the friend of my friend is my friend."
+
+### Network construction
+
+- **Nodes:** the 60 statements, restricted to the ones with at least one
+  edge at |r| ≥ 0.20 (all 60 qualify here).
+- **Edges:** signed — +1 if r ≥ +0.20, −1 if r ≤ −0.20. This produced 620
+  positive edges and 27 negative edges (p_pos = 0.958 — the belief system is
+  overwhelmingly made of positive correlations).
+
+### Method
+
+- Enumerate every complete triad (three statements where all three pairwise
+  edges exist) and classify it balanced/unbalanced by the sign product.
+- **Significance test**: because the edge set is so skewed toward positive
+  edges, *some* balance is guaranteed by chance alone. To control for that,
+  the null model reshuffles the sign labels (not the edges themselves) onto
+  the same 647 edge positions 300 times, and balance is recomputed each time
+  — this asks "is the observed balance level higher than what the same
+  +/− ratio would produce under random sign assignment," not just "is it
+  higher than 50%." An analytic version of the same baseline is computed too
+  (P(balanced) = p³ + 3p(1−p)² for p = fraction of positive edges).
+
+### Results
+
+| | Value |
+|---|---|
+| Complete triads | 3,049 |
+| Balanced | 3,042 (**99.77%**) |
+| Analytic random-sign baseline (same +/− ratio) | 88.5% |
+| Sign-shuffle null (B=300) | mean = 88.50%, max = 91.51% |
+| **p-value** | **0.0033** — significant |
+
+### The 7 unbalanced triads
+
+Every single one of the 7 unbalanced triads involves at least one Technology
+statement (T02, T03, T04, or T15) — e.g. "students should disclose AI use in
+assignments" (T03) correlates *negatively* with "online learning complements
+classroom teaching" (E04), even though both individually correlate positively
+with a third statement. Full list with the specific statement text is in
+`outputs/results_extension1.md`.
+
+### Conclusion
+
+The belief network is significantly more internally consistent than chance
+predicts, even after controlling for its skewed positive/negative edge ratio
+— this class's opinions rarely contradict each other logically. The rare
+exceptions are not random noise: **all 7 involve a Technology/AI statement**,
+independently reinforcing the Idea's headline finding that AI attitudes behave
+differently from the rest of the belief system.
+
+## Files (this push adds)
+
+- `data_utils.py` — identical to the copy from the Idea's push (shared
+  loading/permutation-test helper); included again here so this part runs
+  independently even if pulled in isolation. Already present in the repo — no
+  changes.
+- `extension1_structural_balance.py` — builds the signed network, computes
+  balance, runs the sign-shuffle significance test, saves the figure and
+  results.
+- `outputs/balance_significance.png` — observed balance % vs. the sign-shuffle
+  null distribution vs. the analytic Heider baseline.
+- `outputs/results_extension1.md` — full numeric results and the 7 unbalanced
+  triads (regenerated by the script).
+
+**To run:** `python3.12 extension1_structural_balance.py` from the repo root
+(needs `Survey_Results_UC.csv` in the same folder — it's already there).
