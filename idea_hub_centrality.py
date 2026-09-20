@@ -3,6 +3,7 @@ import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
+from scipy import stats
 from data_utils import load_complete, permutation_null, pval
 
 OUT = os.path.join(os.path.dirname(__file__), 'outputs')
@@ -46,6 +47,26 @@ obs_gap = eignT - eigT
 top_hubs = sorted(eig.items(), key=lambda x: -x[1])[:8]
 bottom = sorted(eig.items(), key=lambda x: x[1])[:5]
 
+# ---- PageRank vs eigenvector centrality: do we need both? ----
+eig_arr = np.array([eig[i] for i in range(m)])
+pr_arr = np.array([pr[i] for i in range(m)])
+btw_arr = np.array([btw[i] for i in range(m)])
+rho_eig_pr, _ = stats.spearmanr(eig_arr, pr_arr)
+
+btw_T = btw_arr[t_idx].mean()
+btw_nonT = btw_arr[[i for i in range(m) if i not in t_idx]].mean()
+top5_btw = sorted(range(m), key=lambda i: -btw_arr[i])[:5]
+
+# ---- robustness check: row-centered (ipsatized) item-item correlation ----
+row_mean_resp = X.mean(axis=1)
+Xr = X - row_mean_resp[:, None]
+Cr = np.corrcoef(Xr, rowvar=False)
+Gr_check = build_graph(Cr)
+eig_r = nx.eigenvector_centrality(Gr_check, weight='weight', max_iter=1000)
+eigT_r = np.mean([eig_r.get(i, 0) for i in t_idx])
+eignT_r = np.mean([eig_r.get(i, 0) for i in range(m) if i not in t_idx])
+obs_gap_row_centered = eignT_r - eigT_r
+
 # k-core backbone
 G_thresh = nx.Graph()
 G_thresh.add_nodes_from(range(m))
@@ -59,7 +80,7 @@ backbone = [n for n, k in core_num.items() if k == max_core]
 backbone_cats = [cat_of[n] for n in backbone]
 
 # ---- significance test ----
-null_gap = permutation_null(X, eig_gap_stat, B=200, seed=0)
+null_gap = permutation_null(X, eig_gap_stat, B=1000, seed=0)
 p = pval(obs_gap, null_gap)
 
 # ---- figure: eigenvector centrality by statement, colored by category ----
@@ -82,7 +103,7 @@ plt.close(fig)
 
 # ---- figure: permutation null histogram vs observed ----
 fig, ax = plt.subplots(figsize=(7, 5))
-ax.hist(null_gap, bins=30, color='#bdc3c7', label='permutation null (n=200)')
+ax.hist(null_gap, bins=30, color='#bdc3c7', label='permutation null (n=1000)')
 ax.axvline(obs_gap, color='#e74c3c', linewidth=2, label=f'observed gap = {obs_gap:.3f}')
 ax.set_xlabel('non-Technology minus Technology eigenvector centrality')
 ax.set_ylabel('count')
@@ -153,14 +174,38 @@ for i, v in bottom:
 lines.append(f'\n## k-core backbone (|r|>=0.30 graph)')
 lines.append(f'Max core = {max_core}-core, {len(backbone)} members. Category counts: '
              + str({c: backbone_cats.count(c) for c in set(backbone_cats)}))
+lines.append(f'The largest k for which a k-core exists at |r|>=0.30 is {max_core}; that {len(backbone)}-node '
+             f'subgraph is the backbone (k is a connectivity requirement, not a node count).')
+
+lines.append('\n## PageRank and betweenness: do they add anything beyond eigenvector centrality?')
+lines.append(f'Spearman correlation between eigenvector centrality and PageRank across all {m} statements: '
+             f'{rho_eig_pr:.3f}. The two rankings are almost identical, so PageRank does not surface any '
+             f'ordering that eigenvector centrality does not already capture on this graph.')
+lines.append(f'Betweenness centrality (bridging power) mean: Technology = {btw_T:.4f}, '
+             f'non-Technology = {btw_nonT:.4f}. Top-5 by betweenness: '
+             + ', '.join(qcols[i][:3] for i in top5_btw) + '.')
+
 lines.append('\n## Significance test')
 lines.append(f'Statistic: mean eigenvector centrality (non-Tech) - mean eigenvector centrality (Tech)')
 lines.append(f'Observed = {obs_gap:.4f}')
-lines.append(f'Permutation null (B=200): mean = {np.mean(null_gap):.4f}, std = {np.std(null_gap):.4f}')
-lines.append(f'p-value = {p:.4f}' + (' (floor — 0/200 permutations matched or exceeded observed)' if p <= 1/201 else ''))
-lines.append(f'\nConclusion: Technology-block statements are significantly less central to the class\'s '
-             f'belief network than everything else. General civic/education/environment values form a tight '
-             f'backbone; AI-specific attitudes sit apart from it.')
+lines.append(f'Permutation null (B=1000): mean = {np.mean(null_gap):.4f}, std = {np.std(null_gap):.4f}')
+lines.append(f'p-value = {p:.4f}' + (' (floor — 0/1000 permutations matched or exceeded observed)' if p <= 1/1001 else ''))
+
+lines.append('\n## Robustness check: row-centered (ipsatized) correlation matrix')
+lines.append(f'Recomputing the same graph after subtracting each respondent\'s own mean response across all '
+             f'{m} items (removing each person\'s general tendency to agree or disagree) before computing '
+             f'item-item correlations: the centrality gap falls from {obs_gap:.4f} to {obs_gap_row_centered:.4f}.')
+lines.append('This does not prove the raw-data finding is spurious; a shared general disposition toward '
+             'pro-social, pro-environment statements could itself be a genuine attitude rather than a survey '
+             'artifact. But the data cannot distinguish "Technology attitudes are substantively decoupled" '
+             'from "this gap is mostly a general agreement/response-style factor that happens to load '
+             'unevenly across blocks," and both readings should be reported together rather than only the '
+             'first.')
+
+lines.append(f'\nConclusion: in the raw correlation matrix, Technology-block statements are significantly '
+             f'less central to the class\'s belief network than everything else, and this pattern survives '
+             f'a stricter permutation test (B=1000). Most of that gap, however, is attributable to a general '
+             f'agreement factor rather than to Technology specifically; see the robustness check above.')
 
 with open(os.path.join(OUT, 'results.md'), 'w') as f:
     f.write('\n'.join(lines))
