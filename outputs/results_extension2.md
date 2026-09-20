@@ -1,14 +1,23 @@
 # Extension 2 — Network-based missing-data imputation
 
-Method: for 500 random (respondent, item) pairs, mask the true answer and predict it from the mean of the 5 nearest neighbors in the mean-centered profile-similarity network, vs. a global item-mean baseline, vs. 5 random neighbors (control).
+Respondent similarity for predicting item j is recomputed per item, with that item's column dropped, before selecting neighbors for any cell that uses it. Every (respondent, item) cell (n*m = 4080) is evaluated this way.
 
-Network k-NN MAE:      0.533
-Random-neighbor MAE:   0.707
-Global-mean baseline:  0.662
+Network k-NN MAE (all 4080 cells): 0.6454
+Global-mean baseline MAE: 0.6615
+Mean improvement per respondent (baseline - knn): 0.0162
 
-## Significance tests
-Paired t-test (baseline error vs k-NN error): t=7.152, p=3.055e-12
-Wilcoxon signed-rank (same pairs): W=40492.0, p=1.659e-11
-Real-network k-NN vs random-neighbor k-NN (independent t-test): t=5.152, p=3.101e-07
+## Significance: respondent-level bootstrap (cells from one respondent are not independent)
+95% CI for mean improvement, resampling respondents with replacement (B=5000): [-0.0099, 0.0420]
+Fraction of bootstrap resamples with improvement <= 0: 0.1052
+Each respondent contributes m correlated cells, so the n*m cells are not independent observations; the respondent-level bootstrap above is the valid test, and it does not clear the conventional 95% threshold. The honest reading is a small, borderline effect.
 
-Conclusion: the similarity network encodes real, statistically robust predictive signal about individual opinions -- it is not just a descriptive picture. This also gives a concrete method for reconstructing plausible answers for the survey dropouts.
+Note: Pearson correlation is already invariant to per-row additive shifts, so subtracting each respondent's own mean before calling corrcoef does not change the resulting similarity matrix at all; it is not part of this pipeline.
+
+## The respondent network as a directed graph
+Each respondent points to its 5 nearest neighbors, so the graph is directed and in-degree (how often a respondent is chosen as someone else's neighbor) is not fixed at 5 the way out-degree is.
+Observed in-degree: mean=5.00 (fixed by construction), sd=5.07, max=21, respondents with in-degree 0: 12
+Random-assignment null (each respondent picks 5 random others, B=500): in-degree sd = 2.14 (std of that estimate = 0.191)
+Correlation between in-degree and a respondent's own mean agreement level: r = 0.432
+In-degree is far more unequal than random assignment would produce, and it correlates with how agreeable a respondent is overall. What causes that correlation is not established by this analysis; it is reported as a descriptive fact about the network, not explained.
+
+The six respondents who abandoned the survey partway through are excluded by `load_complete()` before this network is built, so this network makes no claim about them.
