@@ -1,12 +1,11 @@
 # DPCN Assignment 1 — Opinion Network Formation
 
-**Parts: Idea, Extension 1, Extension 2 & Extension 3 (this push)**
+**Parts: Idea, Extension 1, Extension 2 & Extension 3 (revised)**
 
 This project constructs and analyzes a network from `Survey_Results_UC.csv`, a
 survey collecting opinions on Technology, Education, Society/Ethics, and
 Environment (Values) from the class. This is the complete project README,
-covering all four parts. The exploratory log behind every design decision
-below is in `idea.md` at the repo root.
+covering all four parts.
 
 **Repo layout is flat** — all contributors' files live at the repo root
 alongside the shared `Survey_Results_UC.csv`, not in per-person subfolders.
@@ -14,6 +13,14 @@ Every script only needs its own filename plus that shared CSV, and output
 filenames are unique per contributor (`results.md`, `results_extension1.md`,
 `results_extension2.md`, `results_extension3.md`) so no push overwrites
 another's output.
+
+**This revision** fixes four issues an independent review found in the first
+draft: data leakage in Extension 2's similarity computation, a sample-size
+mismatch in the Section 1 descriptive statistics, a mean-centering step that
+is mathematically a no-op for Pearson correlation, and a general-agreement
+confound that explains most of the raw-data gap in the Idea and Extension 3
+results. All four are addressed in the write-ups below and in the full
+`report/report.tex`.
 
 ## Dataset
 
@@ -28,16 +35,18 @@ another's output.
 - All network construction across this project uses the **68 fully-complete
   respondents** (`data_utils.load_complete()`, identical copy carried by
   every contributor), to avoid missing-data bias in the correlation matrix.
+  The descriptive statistics in the report's Dataset Documentation section
+  use the 91 non-blank respondents instead (96 minus the 5 blank surveys),
+  and the report states this explicitly since the two samples give slightly
+  different numbers.
 - Every significance test in this project uses the same permutation-null
-  design: each of the 60 item columns is independently shuffled across the
-  68 respondents (200 or 300 times, noted per test), which destroys all real
-  correlation structure while preserving each item's response distribution
-  exactly. That's the "does this look different from uncorrelated noise with
-  the same answer patterns" baseline every p-value below is measured against.
+  design unless noted otherwise: each of the 60 item columns is independently
+  shuffled across the 68 respondents, which destroys all real correlation
+  structure while preserving each item's response distribution exactly.
 
 ---
 
-## Idea: Hub-statement centrality — AI attitudes are structurally decoupled
+## Idea: Hub-statement centrality — AI attitudes are less central, with a caveat
 
 ### Network construction
 
@@ -49,162 +58,191 @@ another's output.
 
 ### Method
 
-Eigenvector centrality, PageRank, and betweenness centrality (which
-statements are hubs vs. peripheral vs. bridges), plus k-core decomposition on
-a stricter |r| ≥ 0.30 graph to find the "backbone." Significance test:
-permutation null on the gap between mean eigenvector centrality of
-non-Technology items vs. Technology items.
+Eigenvector centrality, PageRank, and betweenness centrality, plus k-core
+decomposition on a stricter |r| ≥ 0.30 graph to find the "backbone".
+Significance test: permutation null (B=1000) on the gap between mean
+eigenvector centrality of non-Technology items vs. Technology items. As a
+robustness check, the same graph is rebuilt after subtracting each
+respondent's own mean response across all 60 items first (removing general
+agreement level) before computing item-item correlations.
 
 ### Results
 
-**Top hub statements** (highest eigenvector centrality): S09 (inclusive-
-viewpoint discussion), V07 (biodiversity), V08 (sustainable campuses), E07
-(publishing research), S14 (ethics-over-short-term-gains) — all
-Society/Environment/pedagogy-values items.
+**Top hub statements**: S09 (inclusive-viewpoint discussion), V07
+(biodiversity), V08 (sustainable campuses), E07 (publishing research), S14
+(ethics-over-short-term-gains).
 
-**Most peripheral statements** (lowest centrality): T08 (AI diagnosis), T01
-(AI net-positive for society), T02 (generative AI as learning aid), T15
-(society depending on AI) — core AI-attitude items.
+**Most peripheral statements**: T08 (AI diagnosis), T01 (AI net-positive for
+society), E06, T02 (generative AI as learning aid), T15 (society depending on
+AI).
 
-**k-core backbone** (|r| ≥ 0.30): a "9-core" means every statement in it is
-connected to at least 9 others within that subgraph — a connectivity
-requirement, not a node count. That requirement leaves a 22-statement
-backbone standing (6 Society, 4 Education, 12 Environment) — **zero
-Technology statements**.
+**k-core backbone** (|r| ≥ 0.30): the largest k for which a k-core exists is
+9; that 22-statement subgraph (6 Society, 4 Education, 12 Environment, 0
+Technology) is the backbone.
+
+**PageRank and betweenness**: Spearman correlation between eigenvector
+centrality and PageRank is 0.985 — PageRank adds no new ordering here.
+Betweenness centrality mean is lower for Technology (0.0046) than the rest of
+the network (0.0129).
 
 ### Significance test
 
-Observed gap = 0.0668 vs. permutation null (B=200) mean = 0.0005, std =
-0.0093. **p = 0.0050** (the floor achievable with 200 permutations — 0/200
-reshuffles matched it), roughly 7 standard deviations above the null mean.
+Observed gap = 0.0668 vs. permutation null (B=1000) mean ≈ 0.0000, std =
+0.0100. **p = 0.0010**, roughly 7 standard deviations above the null mean.
+
+### Robustness check: row-centered correlation
+
+Recomputing the graph after removing each respondent's own mean response
+first, the centrality gap falls from 0.0668 to **0.0007**, essentially to
+zero. This does not prove the raw-data finding is spurious — a shared
+disposition toward pro-social, pro-environment statements could itself be a
+genuine attitude — but the data cannot separate that reading from "this gap
+is mostly a general agreement factor," and both should be reported.
 
 ### Conclusion
 
-There's a tightly interconnected general civic/pedagogical-values belief
-system in this class — but AI-specific attitudes are statistically decoupled
-from it. Knowing someone is pro-environment or pro-ethics tells you almost
-nothing about whether they trust AI. This is the strongest, most rigorously
-validated finding in the project, and everything below either corroborates it
-or validates the network methodology used to find it.
+In the raw data, Technology-specific attitudes are statistically decoupled
+from a tightly interconnected civic/pedagogical-values belief system. Most of
+that gap, however, tracks a general agreement factor shared across
+respondents rather than Technology content specifically; see the robustness
+check above and Section 4.1 of the report.
 
 *(Code: `data_utils.py`, `idea_hub_centrality.py`. Outputs:
-`outputs/network_graph.png` — the full network, force-directed, node size =
-eigenvector centrality, color = T/E/S/V block, black ring = backbone
-membership, larger black labels = top-8/bottom-5 centrality extremes, edge
-darkness = correlation strength — plus `outputs/centrality_by_statement.png`,
+`outputs/network_graph.png`, `outputs/centrality_by_statement.png`,
 `outputs/significance_test.png`, `outputs/results.md`.)*
 
 ---
 
-## Extension 1: Structural balance on the signed statement network
+## Extension 1: Triangle density and the negative-edge subgraph
 
-Asks whether the belief network is internally *consistent* (Heider balance
-theory: a triad is "balanced" if the product of its three relationship signs
-is positive).
+Asks two questions about the unsigned 647-edge statement graph (|r| ≥ 0.20):
+is it more triangle-dense than a random graph of the same density, and what
+structure do the 27 negative edges have on their own? An earlier version of
+this analysis tested Heider structural balance on a signed version of the
+graph; that framing conflated ordinary correlation-graph transitivity
+(partly guaranteed by construction) with genuine attitudinal consistency, so
+it has been replaced with the two comparisons below.
 
 ### Network construction
 
-Same 60 statement nodes; edges signed +1 if r ≥ +0.20, −1 if r ≤ −0.20 → 620
-positive, 27 negative edges (the network is overwhelmingly positively
-correlated).
+Same 60 statement nodes; edges are unsigned, |r| ≥ 0.20 → 647 edges total
+(620 positive, 27 negative).
 
 ### Method
 
-Enumerate every complete triad, classify balanced/unbalanced by sign product.
-Significance test: reshuffle the sign *labels* (not the edges) onto the same
-edge positions 300 times — controls for the fact that a heavily
-positive-skewed network is *automatically* mostly balanced, and asks whether
-the observed level exceeds what that skew alone would produce. Cross-checked
-against the analytic Heider baseline P(balanced) = p³ + 3p(1−p)².
+**Part A:** compare the observed triangle count against an Erdos-Renyi graph
+G(60, p̂) of the same edge density, both via the closed form C(60,3)·p̂³ and
+via 200 simulated draws.
+**Part B:** treat the 27 negative edges as their own unsigned subgraph and
+examine degree, connected components, and triangles within it.
 
 ### Results
 
-3,042 of 3,049 complete triads balanced (**99.77%**) vs. an analytic/simulated
-random-sign baseline of ~88.5% (null mean 88.50%, max 91.51% across 300
-shuffles). **p = 0.0033** — significant.
+**Part A:** observed triangles = 3049, transitivity = 0.566, vs. a simulated
+Erdos-Renyi null mean of 1663 triangles and transitivity 0.364 (closed-form
+expectation: 1671 triangles). **p = 0.0050**. The graph is more
+triangle-dense than same-density randomness would predict, which is expected
+of correlation graphs generally and is a weaker claim than structural
+balance — a sanity check on graph structure, not proof of a psychological
+consistency mechanism.
 
-**All 7 unbalanced triads involve a Technology/AI statement** (T02, T03, T04,
-or T15) — e.g. "students should disclose AI use" correlates negatively with
-"online learning complements classroom teaching," despite both correlating
-positively with a shared third statement.
+**Part B:** the 27 negative edges form 5 components (sizes 17, 4, 3, 2, 2)
+with **0 triangles**. The largest component is a hub-and-spoke structure
+anchored by two Education items: E02 ("traditional exams accurately measure
+knowledge," degree 9) and E03 ("attendance should be compulsory," degree 8),
+which are not directly connected to each other. The disagreement in this
+network is concentrated on two contested Education statements, not on
+Technology.
 
 ### Conclusion
 
-The belief system is significantly more logically consistent than chance
-predicts, even controlling for its skewed edge signs — and the rare
-inconsistencies that do exist are all concentrated on AI/Technology
-statements. Independent second confirmation of the Idea's central claim.
+The statement graph is more transitive than chance, as expected for a
+correlation graph. The real structure worth reporting is in the negative
+edges: disagreement here is a hub-and-spoke pattern around two Education
+items, not a Technology-centered phenomenon.
 
 *(Code: `extension1_structural_balance.py`. Outputs:
-`outputs/balance_significance.png`, `outputs/results_extension1.md`.)*
+`outputs/triangle_significance.png`, `outputs/negative_edge_subgraph.png`,
+`outputs/results_extension1.md`.)*
 
 ---
 
 ## Extension 2: Network-based missing-data imputation
 
-Asks a methodological question: does the similarity network actually *mean*
-anything, or is it just a nice-looking picture? Tests whether it can predict
-a respondent's answer to a question that's hidden from it.
+Tests whether the respondent similarity network predicts a respondent's
+answers better than a naive baseline.
 
 ### Network construction
 
 **Nodes:** the 68 respondents. **Edges:** k-nearest-neighbors (k=5) on
-mean-centered profile correlation between respondents' 60-item answer
-vectors (mean-centering removes acquiescence bias — raw answer similarity is
-dominated by the fact that most people answer "Agree" most of the time).
+profile correlation between respondents' 60-item answer vectors. An earlier
+version subtracted each respondent's own mean first ("removes
+agreeableness"); that step is mathematically a no-op for Pearson correlation
+(which is already invariant to a constant shift in either vector), so it has
+been dropped.
 
 ### Method
 
-For 500 random (respondent, item) pairs: mask the true answer, predict it
-three ways — (a) mean of the 5 nearest network neighbors' answers to that
-item, (b) that item's global mean across everyone else (baseline), (c) 5
-*random* neighbors' answers (control, to check the *specific* similarity
-structure matters, not just "any 5 people"). Compare mean absolute error
-(MAE) with paired significance tests since (a) and (b) are computed on the
-same 500 held-out cells.
+For **all 4,080** (respondent, item) cells (not a random sample): mask the
+true answer, predict it from the mean of the 5 nearest neighbors, and compare
+against a global item-mean baseline. Similarity for predicting item j is
+recomputed with column j dropped first, so the true answer never leaks into
+neighbor selection — an earlier version computed similarity once globally
+and leaked the held-out answer into it, which inflated the reported effect.
+Because the 4,080 cells come from only 68 respondents and are not
+independent, significance is assessed with a respondent-level bootstrap
+rather than a cell-level test.
 
 ### Results
 
 | Predictor | MAE |
 |---|---|
-| Network k-NN | **0.533** |
+| Network k-NN (leak-free) | **0.645** |
 | Global-mean baseline | 0.662 |
-| Random-neighbor control | 0.707 |
 
-Paired t-test (baseline vs. k-NN error): t=7.152, **p = 3.1×10⁻¹²**.
-Wilcoxon signed-rank (non-parametric check): **p = 1.7×10⁻¹¹**.
-Real-network k-NN vs. random-neighbor k-NN: t=5.152, **p = 3.1×10⁻⁷**.
+Respondent-level bootstrap (B=5000) 95% CI for the mean improvement:
+**[-0.010, 0.042]** — includes zero. This is a small, borderline effect, not
+the extreme significance an earlier leaky version reported (MAE 0.533 vs.
+0.662, p=3×10⁻¹², from a cell-level test that also treated 4,080 correlated
+cells as independent).
+
+**Network as a directed graph:** in-degree (how often a respondent is chosen
+as a neighbor) has standard deviation 5.07, against 2.14 under random
+assignment; maximum in-degree 21; 12 respondents with in-degree 0. In-degree
+correlates with a respondent's own mean agreement level (r=0.43): more
+agreeable respondents get chosen more often, since similarity uses raw
+(not de-meaned) profiles.
 
 ### Conclusion
 
-The strongest p-value anywhere in this project. The similarity network
-encodes real, statistically undeniable predictive signal about individual
-opinions — it beats both a naive baseline and a same-size random-neighbor
-control by a wide, highly significant margin. This is also a concrete,
-demonstrated method for reconstructing plausible answers for the 6 survey
-respondents who abandoned partway through.
+The similarity network carries a small amount of real predictive signal, but
+not the dramatic effect first reported — that was substantially inflated by
+data leakage. The claim that this method reconstructs answers for the six
+survey dropouts has been removed: those six are excluded before this network
+is built, and no such reconstruction was ever run.
 
 *(Code: `extension2_imputation.py`. Outputs: `outputs/imputation_mae.png`,
-`outputs/results_extension2.md`.)*
+`outputs/imputation_bootstrap.png`, `outputs/results_extension2.md`.)*
 
 ---
 
-## Extension 3: Multiplex per-category belief-network density
+## Extension 3: Per-block link density
 
-Asks how the T/E/S/V blocks compare to each other as four separate
-"sub-networks" (a simple multiplex view), quantifying the descriptive
-observation (in `idea.md`) that Environment answers show near-unanimous
-agreement while Education answers are the most disputed.
+Asks how the T/E/S/V blocks compare as four induced subgraphs of the
+statement-correlation graph.
 
 ### Network construction
 
-Same 60 statements, split into 4 layers by block. **Edges:** within-layer
-Pearson |r| only (no cross-layer edges in this analysis).
+Same 60 statements, split into 4 blocks. **Edges:** within-block Pearson |r|
+only (no cross-block edges).
 
 ### Method
 
-Mean |r| within each layer, each tested against its own permutation null
-(B=200 per category, same shuffle design as the Idea's test).
+Weighted link density (mean |r|) within each block, tested against its own
+permutation null (B=200), and cross-checked against the closed-form expected
+value of |r| between two independent 68-observation vectors,
+√(2/(π·67)) ≈ 0.098. Also rerun on a row-centered correlation matrix as a
+robustness check.
 
 ### Results
 
@@ -215,17 +253,20 @@ Mean |r| within each layer, each tested against its own permutation null
 | Society | 0.250 | 0.098 | 0.0050 |
 | **Environment** | **0.318** | 0.098 | 0.0050 |
 
-All four blocks are individually significant (all hit the p=0.005 floor), but
-the *effect size* differs sharply: Environment's density above its noise
-floor (0.220) is roughly **5.7×** Technology's (0.038).
+All four blocks are individually significant, and the empirical null mean
+matches the closed-form derivation. Environment's density above its noise
+floor is roughly **5.7×** Technology's. Once each respondent's general
+agreement level is removed first (row-centering), the four blocks converge
+to roughly 0.12–0.14 instead of spreading from 0.136 to 0.318 — the raw-data
+gap tracks a general agreement factor more than topic-specific structure.
+Technology's within-block correlations are weakly related to one another;
+nothing here tests for or supports separate sub-views within any block.
 
 ### Conclusion
 
-Every topic block shows real internal correlation beyond chance, but
-Environment opinions function almost as a single unified attitude while
-Technology opinions are comparatively fragmented — consistent with, and a
-third independent confirmation of, the Idea's central finding that Technology
-attitudes are the odd one out in this class's belief system.
+Every block shows real internal correlation beyond chance, but the size of
+that effect is mostly explained by a general agreement factor shared across
+respondents, echoing the Idea's robustness check.
 
 *(Code: `extension3_multiplex_density.py`. Outputs:
 `outputs/category_density.png`, `outputs/results_extension3.md`.)*
@@ -234,25 +275,24 @@ attitudes are the odd one out in this class's belief system.
 
 ## Overall synthesis
 
-Four independent analyses, built with three different network
-constructions (statement-correlation graph, signed statement graph,
-respondent-similarity graph, per-category statement subgraphs) and three
-different methods (eigenvector centrality, triad balance, k-NN prediction,
-within-layer density), all converge on the same conclusion: **this class's
-opinions on ethics, education, and environment form one coherent,
-internally-consistent belief system, and attitudes toward AI/Technology sit
-statistically apart from it.** Every one of the four core statistics reported
-above is significance-tested against a permutation null, not just eyeballed
-from a plot — the full negative-result log (ideas tried and discarded because
-they didn't survive significance testing) is in `idea.md` at the repo root,
-for anyone checking that this wasn't cherry-picked.
+Four analyses, but not four independent lines of evidence: the Idea,
+Extension 1, and Extension 3 all derive from the same 60×60 item correlation
+matrix; only Extension 2 uses a genuinely different (respondent×respondent)
+matrix. In the raw data, Technology and AI attitudes are less central,
+concentrate the graph's only real disagreement structure once Education's
+hub items are set aside, and form the least internally correlated topic
+block. But robustness checks show most of the Idea's and Extension 3's
+raw-data gap tracks a general agreement factor shared across respondents,
+not Technology specifically, and Extension 2's corrected effect is small and
+statistically borderline. This report does not test, and does not claim,
+that a respondent's environmental or ethical positions predict their stance
+on AI. See `report/report.tex` (Section 4) for the full discussion,
+including limitations.
 
 ## Repository layout
 
 ```
 Survey_Results_UC.csv                raw data (shared)
-idea.md                              full exploratory log: every idea tried, significance
-                                      tests, and why this direction was chosen
 docs/DPCN_Assignment_1.pdf           assignment brief
 
 data_utils.py                        shared load + permutation-null helper (identical
@@ -264,26 +304,25 @@ outputs/centrality_by_statement.png
 outputs/significance_test.png
 outputs/results.md
 
-extension1_structural_balance.py     Extension 1
-outputs/balance_significance.png
+extension1_structural_balance.py     Extension 1 (triangle density + negative-edge subgraph)
+outputs/triangle_significance.png
+outputs/negative_edge_subgraph.png
 outputs/results_extension1.md
 
 extension2_imputation.py             Extension 2
 extension3_multiplex_density.py      Extension 3
 outputs/imputation_mae.png
+outputs/imputation_bootstrap.png
 outputs/category_density.png
 outputs/results_extension2.md
 outputs/results_extension3.md
 
+report/report.tex                    final report (LaTeX source)
+report/report.pdf                    final report (compiled)
+
 README.md                            this file — the complete project README
 ```
 
-**To run any part:** from the repo root, `python3.12 <script_name>.py` — every
+**To run any part:** from the repo root, `python3 <script_name>.py` — every
 script only needs its own `data_utils.py` copy and `Survey_Results_UC.csv`,
 both already present at the repo root.
-
-## Next step
-
-Report writing (not yet started) — will assemble Dataset Documentation,
-Pipeline, Analysis and Visualizations, Results and Discussion, and Individual
-Contribution sections from the four analyses documented above.
